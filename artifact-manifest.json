@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "description": "Original five-run numerical snapshot; see docs/ARTIFACTS.md",
+  "sha256": {
+    "results/hard_ic_seed0/after_adam.pt": "8c8fb806c7dd9d5ebef9d384ffc6f99093a0d06da03a5e1084978ba02074ac8a",
+    "results/hard_ic_seed0/after_lbfgs.pt": "19407913b1f5d9b062a08e18e4c071f1536d7942ddd8c1b1f996eaedc5826b62",
+    "results/hard_ic_seed0/history.csv": "8d32cc10669ddefb18494bae3995a105eb30885a6228d0cb72c473a1b64c6738",
+    "results/hard_ic_seed0/metrics.json": "18d734374e75c4dffe94d933b050cf9e7952bcc64d98280b338d33af9cb2a70c",
+    "results/hard_ic_seed1/after_adam.pt": "ccbb8bd256efe02e707d66c86a6b35e393e43762ec58a790a9ea8cb2498719d1",
+    "results/hard_ic_seed1/after_lbfgs.pt": "d43710bf7db21624ff25ac4896501a6c26995ef6e43c4d171d87d65d2e612e37",
+    "results/hard_ic_seed1/history.csv": "7b9b785bd6802ffaeda679fe6c9daf9f213385a96e9b7faa0e768e7e432475a0",
+    "results/hard_ic_seed1/metrics.json": "90bbc5e76e5907cf85877e7807ada8da96aef3a9448567f7ff3fa8f1a02f036e",
+    "results/pinn_seed0/after_adam.pt": "2dd0c593b8997bade6a127a78e17dfcbbc99c7a32283a9a9cd3fb17d30e4a0e1",
+    "results/pinn_seed0/after_lbfgs.pt": "065df9a73d27b6148b216907b2230736ec4cd8d743dbd55171183f37399417a9",
+    "results/pinn_seed0/history.csv": "ad8384395b3fc420c176b8ab905e46a0586c6e4d14eaf70e4e08a6c31c99cb4e",
+    "results/pinn_seed0/metrics.json": "953939afdc6efd0c966c701caa9fd97e828c9d31c73c6ae07e8685cc34a65447",
+    "results/pinn_seed1/after_adam.pt": "c5027ad0344a816b42da03648deb38dfe426eb8cc9d7cd7d9887e98801360483",
+    "results/pinn_seed1/after_lbfgs.pt": "a8ec9226d349e05990fd9eedd90e34ec9ae882446056547c9fb4f82a95e39e1c",
+    "results/pinn_seed1/history.csv": "5d1b46d090999cdcadd2052a40c8ab909b598f7e63dc24e7a3b9692247bf6c3a",
+    "results/pinn_seed1/metrics.json": "3d5baa7fa57f3c56b3d5ab23b4e4ec9a3e732754d360472a18970dbba33abcf5",
+    "results/supervised_seed0/after_adam.pt": "501595bea9503a119587fd56d7b279e69527cf6464c142bb32627e0f2382b106",
+    "results/supervised_seed0/after_lbfgs.pt": "be9e0a240f84bdc46d5a07e4014cdaadbf9119d8c7d6b8616d07aa9a153b83c9",
+    "results/supervised_seed0/history.csv": "aeea4314c979af1a08399783ba42b203e478a22b9844c17034a1844b23a28ad5",
+    "results/supervised_seed0/metrics.json": "0c32fc6483b33b2a25cf8cfe64c81436a1a10eebeeb311046e7e18b87ab0fb97"
+  }
+}

@@ -1,0 +1,225 @@
+<div id="tg-explorer">
+  <style>
+    #tg-explorer { display:grid; gap:calc(var(--font-size-base)*1); color:var(--foreground); }
+    #tg-explorer .tg-heading { padding-right:100px; }
+    #tg-explorer .tg-maps { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:calc(var(--font-size-base)*1); }
+    #tg-explorer .tg-map { min-width:0; display:grid; gap:calc(var(--font-size-base)*.25); }
+    #tg-explorer .tg-map svg { display:block; width:100%; }
+    #tg-explorer .tg-scale { display:flex; justify-content:space-between; gap:calc(var(--font-size-base)*.25); }
+    #tg-explorer .tg-key { height:8px; background:linear-gradient(to right,var(--viz-series-2),var(--background),var(--viz-series-1)); }
+    #tg-explorer .tg-key.sequential { background:linear-gradient(to right,var(--background),var(--viz-series-1)); }
+    #tg-explorer .tg-timeline { display:grid; grid-template-columns:auto 1fr; align-items:center; gap:calc(var(--font-size-base)*1); }
+    #tg-explorer .tg-time { display:grid; gap:calc(var(--font-size-base)*.25); }
+    #tg-explorer .tg-readout { display:flex; flex-wrap:wrap; gap:calc(var(--font-size-base)*1.5); }
+    #tg-explorer .tg-readout > span { display:grid; gap:calc(var(--font-size-base)*.25); }
+    #tg-explorer .tg-chart { min-height:280px; }
+    @media(max-width:600px) { #tg-explorer .tg-maps { grid-template-columns:1fr; } }
+  </style>
+  <div class="tg-heading"><h2>Taylor–Green: inspect the approximation</h2></div>
+  <div class="viz-controls">
+    <label class="form-label">Run<select class="form-select" id="tg-run"></select></label>
+    <label class="form-label">Optimization stage<select class="form-select" id="tg-stage"><option value="after_lbfgs">Adam + L-BFGS</option><option value="after_adam">Adam only</option></select></label>
+    <label class="form-label">Flow quantity<select class="form-select" id="tg-field"><option value="omega">Vorticity + streamlines</option><option value="speed">Speed + streamlines</option><option value="u">Horizontal velocity u</option><option value="v">Vertical velocity v</option><option value="p">Pressure, mean removed</option></select></label>
+  </div>
+  <div class="tg-timeline">
+    <button class="btn" type="button" id="tg-play">Play</button>
+    <label class="tg-time form-label"><span>Time <output id="tg-t" class="tabular-nums">2.000</output></span><input class="form-range" type="range" id="tg-slider" min="0" max="16" step="1" value="16" aria-label="Time snapshot"></label>
+  </div>
+  <div class="tg-readout" aria-live="polite" id="tg-readout"></div>
+  <div class="tg-maps">
+    <div class="tg-map"><h3>Exact</h3><svg id="tg-exact" role="img" aria-label="Exact flow field with x and y coordinates"></svg><div class="tg-key" id="tg-key-exact"></div><div class="tg-scale text-small tabular-nums" id="tg-scale-exact"></div></div>
+    <div class="tg-map"><h3>Prediction</h3><svg id="tg-pred" role="img" aria-label="Neural network prediction with x and y coordinates"></svg><div class="tg-key" id="tg-key-pred"></div><div class="tg-scale text-small tabular-nums" id="tg-scale-pred"></div></div>
+    <div class="tg-map"><h3 id="tg-error-title">Velocity error magnitude</h3><svg id="tg-error" role="img" aria-label="Prediction error field with its own explicit color scale"></svg><div class="tg-key" id="tg-key-error"></div><div class="tg-scale text-small tabular-nums" id="tg-scale-error"></div></div>
+  </div>
+  <label class="form-check"><input class="form-check-input" type="checkbox" id="tg-common-scale"><span class="form-check-label">Use flow color scale for error</span></label>
+  <div class="viz-controls">
+    <label class="form-label">Compare all runs<select class="form-select" id="tg-chart-mode"><option value="velocity">Velocity error across time</option><option value="pressure">Pressure error across time</option><option value="energy">Kinetic energy across time</option><option value="training">Velocity error during training</option><option value="residual">Fresh-point momentum residual during training</option></select></label>
+  </div>
+  <section id="tg-comparison" data-viz-composition><div class="tg-chart" data-viz-container></div></section>
+  <div class="text-small text-muted">ν = 0.1 · __GRID_LABEL__ · Autograd vorticity · Streamline shapes show instantaneous flow, not particle trajectories · Supervised fitting uses exact interior labels · Error colors have a separate scale unless selected above</div>
+  <script type="application/json" id="tg-data">__TAYLOR_GREEN_DATA__</script>
+</div>
+<script type="module">
+const root = document.getElementById('tg-explorer');
+const data = JSON.parse(root.querySelector('#tg-data').textContent);
+const el = id => root.querySelector('#tg-'+id);
+const ns = 'http://www.w3.org/2000/svg';
+const n = data.n, cells = n*n, lastFrame=data.runs[0].times.length-1;
+el('slider').max=lastFrame;
+const stageLabel = {after_adam:'Adam only',after_lbfgs:'Adam + L-BFGS'};
+let state = {version:1,run:data.runs[0].id,stage:'after_lbfgs',field:'omega',time:data.runs[0].times.length-1,common:false,chart:'velocity'};
+let chart = null, timer = null;
+for (const run of data.runs) {
+  const option = document.createElement('option'); option.value=run.id; option.textContent=run.label; el('run').append(option);
+  for (const s of Object.values(run.stages)) {
+    s.decoded = s.fields.map(f => {
+      const bytes = Uint8Array.from(atob(f.data),c=>c.charCodeAt(0));
+      const view = new DataView(bytes.buffer);
+      return Float64Array.from({length:bytes.length/2},(_,i)=>view.getInt16(i*2,true)*f.scale);
+    });
+  }
+}
+const current = () => data.runs.find(r=>r.id===state.run);
+const fmt = x => Math.abs(x)<1e-12 ? '0' : Number(x).toPrecision(3);
+const percent = x => (100*x).toFixed(2)+'%';
+function applySaved(snapshot) {
+  const s=snapshot?.modelContent;
+  if (!s || s.version!==1) return;
+  if(data.runs.some(r=>r.id===s.run)) state.run=s.run;
+  if(['after_adam','after_lbfgs'].includes(s.stage)) state.stage=s.stage;
+  if(['omega','speed','u','v','p'].includes(s.field)) state.field=s.field;
+  if(Number.isInteger(s.time)&&s.time>=0&&s.time<=lastFrame) state.time=s.time;
+  if(typeof s.common==='boolean') state.common=s.common;
+  if(['velocity','pressure','energy','training','residual'].includes(s.chart)) state.chart=s.chart;
+}
+function save() { window.openai?.setWidgetState?.({modelContent:{...state},privateContent:null})?.catch(()=>{}); }
+function chartConfig() {
+  const mode=state.chart, temporal=['velocity','pressure','energy'].includes(mode), rows=[];
+  for (const run of data.runs) {
+    if (temporal) {
+      const s=run.stages[state.stage].stats;
+      run.times.forEach((t,i)=>{
+        const row={x:t,value:s[mode][i],run:run.label};
+        if(mode!=='energy') {
+          row.errorNorm=s[mode+'_error_norm'][i]; row.referenceNorm=s[mode+'_reference_norm'][i];
+        }
+        rows.push(row);
+      });
+    } else {
+      const evaluations=[...new Set(data.runs.flatMap(r=>r.history.map(h=>h.evaluation)))].sort((a,b)=>a-b);
+      const observations=new Map(run.history.map(h=>[h.evaluation,h]));
+      for(const x of evaluations) {
+        const h=observations.get(x);
+        rows.push({x,value:h?h[mode==='training'?'velocity_rel_l2':'audit_momentum_rms']:null,run:run.label});
+      }
+    }
+  }
+  if(mode==='energy') for(const t of data.runs[0].times) rows.push({x:t,value:.25*Math.exp(-4*data.runs[0].nu*t),run:'Exact'});
+  const spec={type:'line',x:'x',y:'value',series:'run',xLabel:temporal?'Time t':'Objective evaluations',
+    yLabel:mode==='energy'?'Mean kinetic energy':mode==='residual'?'Momentum residual RMS (log scale)':'Relative L2 error'+(mode==='training'?' (log scale)':''),
+    valueFormat: mode==='energy'||mode==='residual'?{style:'decimal',maximumFractionDigits:5}:{style:'percent',maximumFractionDigits:2}};
+  if(!temporal) {spec.yScale='log';spec.startAtZero=false;}
+  if(mode==='velocity'||mode==='pressure') spec.tooltipFields=[
+    {field:'errorNorm',label:'Error norm (sample Euclidean norm)'},
+    {field:'referenceNorm',label:'Exact-field norm (sample Euclidean norm)'}];
+  const titles={velocity:'Velocity error · '+stageLabel[state.stage],pressure:'Centered pressure error · '+stageLabel[state.stage],energy:'Energy decay · '+stageLabel[state.stage],training:'Actual velocity error during optimization',residual:'Independent residual audit during optimization'};
+  return {id:'tg-run-comparison',title:titles[mode],height:300,spec,rows,
+    description:temporal?'All runs at the selected optimization stage. Supervised fitting uses additional labels.':'Saved evaluations; L-BFGS includes line-search trial points. Horizontal axis counts objectives, not wall-clock time.'};
+}
+function fieldSlice(run,stage,index,field) {
+  const s=run.stages[stage], t=run.times[index], a=Math.exp(-2*run.nu*t),
+    truth=[],prediction=[],error=[],uvTrue=[],uvPred=[];
+  for(let j=0;j<n;j++) for(let i=0;i<n;i++) {
+    const x=(i+.5)*2*Math.PI/n,y=(j+.5)*2*Math.PI/n,k=j*n+i,idx=index*cells+k;
+    const q=[Math.sin(x)*Math.cos(y)*a,-Math.cos(x)*Math.sin(y)*a,.25*(Math.cos(2*x)+Math.cos(2*y))*a*a,2*Math.sin(x)*Math.sin(y)*a];
+    const p=s.decoded.map(f=>f[idx]); uvTrue.push(q);uvPred.push(p);
+    const component={u:0,v:1,p:2,omega:3}[field];
+    const qv=field==='speed'?Math.hypot(q[0],q[1]):q[component];
+    const pv=field==='speed'?Math.hypot(p[0],p[1]):p[component];
+    truth.push(qv);prediction.push(pv);error.push(field==='speed'?Math.hypot(p[0]-q[0],p[1]-q[1]):pv-qv);
+  }
+  return {truth,prediction,error,uvTrue,uvPred};
+}
+const boundCache=new Map();
+function bounds(run) {
+  const key=run.id+state.stage+state.field;
+  if(!boundCache.has(key)) {
+    let flow=0,error=0;
+    for(let t=0;t<run.times.length;t++) {
+      const slice=fieldSlice(run,state.stage,t,state.field);
+      for(let i=0;i<cells;i++) {flow=Math.max(flow,Math.abs(slice.truth[i]),Math.abs(slice.prediction[i]));error=Math.max(error,Math.abs(slice.error[i]));}
+    }
+    boundCache.set(key,{flow,error});
+  }
+  return boundCache.get(key);
+}
+function svgNode(name,attrs,text) {
+  const node=document.createElementNS(ns,name);
+  for(const [k,v] of Object.entries(attrs)) node.setAttribute(k,String(v));
+  if(text!==undefined) node.textContent=text;
+  return node;
+}
+function drawMap(id,values,limit,positive,uv) {
+  const svg=el(id),w=svg.parentElement.clientWidth,margin=29,size=w-margin-4,cell=size/n;
+  svg.setAttribute('viewBox',`0 0 ${w} ${w+20}`);svg.setAttribute('height',w+20);
+  const nodes=[svgNode('title',{},`${id}: ${state.field}, time ${current().times[state.time].toFixed(3)}, color range ${positive?'0':fmt(-limit)} to ${fmt(limit)}`)];
+  // Rasterize dense scalar samples; keep axes and streamlines as crisp vectors.
+  const canvas=document.createElement('canvas');canvas.width=n;canvas.height=n;
+  const ctx=canvas.getContext('2d'),image=ctx.createImageData(n,n);
+  function rgb(token){const sw=document.createElement('span');sw.style.color=`var(${token})`;root.append(sw);const c=getComputedStyle(sw).color;sw.remove();ctx.fillStyle=c;ctx.fillRect(0,0,1,1);return Array.from(ctx.getImageData(0,0,1,1).data).slice(0,3);}
+  const bg=rgb('--background'),pos=rgb('--viz-series-1'),neg=rgb('--viz-series-2');
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){
+    const v=values[j*n+i],weight=Math.min(1,Math.abs(v)/Math.max(limit,1e-15)),color=v<0?neg:pos,k=((n-1-j)*n+i)*4;
+    for(let c=0;c<3;c++)image.data[k+c]=Math.round(bg[c]+weight*(color[c]-bg[c]));image.data[k+3]=255;
+  }
+  ctx.putImageData(image,0,0);
+  nodes.push(svgNode('image',{x:margin,y:4,width:size,height:size,href:canvas.toDataURL(),'image-rendering':'auto'}));
+  if(uv&&(state.field==='speed'||state.field==='omega')) {
+    const at=(x,y)=>{const fx=x*n/(2*Math.PI)-.5,fy=y*n/(2*Math.PI)-.5,ix=Math.floor(fx),iy=Math.floor(fy),a=fx-ix,b=fy-iy;
+      const get=(i,j)=>uv[((j%n+n)%n)*n+(i%n+n)%n];
+      const q=[get(ix,iy),get(ix+1,iy),get(ix,iy+1),get(ix+1,iy+1)];
+      return [0,1].map(k=>(1-b)*((1-a)*q[0][k]+a*q[1][k])+b*((1-a)*q[2][k]+a*q[3][k]));};
+    // Short bidirectional streamlines, with normalized steps, from periodic samples.
+    for(let sy=0;sy<6;sy++)for(let sx=0;sx<6;sx++){
+      const seed=[(sx+.5)*2*Math.PI/6,(sy+.5)*2*Math.PI/6],parts=[];
+      for(const sign of [-1,1]){let [x,y]=seed;const pts=[];
+        for(let step=0;step<65;step++){
+          if(x<0||x>2*Math.PI||y<0||y>2*Math.PI)break;
+          pts.push([margin+x/(2*Math.PI)*size,4+(1-y/(2*Math.PI))*size]);
+          let v=at(x,y),norm=Math.hypot(...v);if(norm<1e-5)break;
+          const dt=sign*.035/norm,m=at(x+.5*dt*v[0],y+.5*dt*v[1]),mn=Math.hypot(...m);if(mn<1e-5)break;
+          x+=sign*.035*m[0]/mn;y+=sign*.035*m[1]/mn;
+        }parts.push(pts);
+      }
+      const pts=parts[0].reverse().concat(parts[1].slice(1));
+      nodes.push(svgNode('polyline',{points:pts.map(p=>p.join(',')).join(' '),fill:'none',stroke:'var(--foreground)','stroke-width':.8,opacity:.48,'pointer-events':'none'}));
+      const v=at(...seed),angle=Math.atan2(-v[1],v[0]),x=margin+seed[0]/(2*Math.PI)*size,y=4+(1-seed[1]/(2*Math.PI))*size;
+      const c=Math.cos(angle),ss=Math.sin(angle);
+      nodes.push(svgNode('polygon',{points:`${x+3*c},${y+3*ss} ${x-2*c+2*ss},${y-2*ss-2*c} ${x-2*c-2*ss},${y-2*ss+2*c}`,fill:'var(--foreground)','pointer-events':'none'}));
+    }
+  }
+  const ticks=[[0,'0'],[.5,'π'],[1,'2π']];
+  for(const [f,label] of ticks) {
+    nodes.push(svgNode('text',{x:margin+f*size,y:size+22,'text-anchor':'middle',fill:'var(--muted-foreground)',class:'text-small'},label));
+    nodes.push(svgNode('text',{x:margin-5,y:8+(1-f)*size,'text-anchor':'end',fill:'var(--muted-foreground)',class:'text-small'},label));
+  }
+  nodes.push(svgNode('text',{x:margin+size/2,y:size+38,'text-anchor':'middle',fill:'var(--foreground)',class:'text-small'},'x'));
+  nodes.push(svgNode('text',{x:7,y:4+size/2,fill:'var(--foreground)',class:'text-small'},'y'));
+  svg.replaceChildren(...nodes);
+  el('key-'+id).classList.toggle('sequential',positive);
+  el('scale-'+id).replaceChildren(...[positive?'0':fmt(-limit),fmt(limit)].map(text=>{const span=document.createElement('span');span.textContent=text;return span;}));
+}
+function syncControls() {
+  el('run').value=state.run;el('stage').value=state.stage;el('field').value=state.field;el('slider').value=state.time;
+  el('common-scale').checked=state.common;el('chart-mode').value=state.chart;
+}
+function render(updateChart=true) {
+  const run=current(),t=run.times[state.time],stats=run.stages[state.stage].stats,slice=fieldSlice(run,state.stage,state.time,state.field),range=bounds(run);
+  el('t').textContent=t.toFixed(3);el('slider').setAttribute('aria-valuetext',`t = ${t.toFixed(3)}`);
+  const vals=[['Velocity error at t',percent(stats.velocity[state.time])],['Pressure error at t',percent(stats.pressure[state.time])],['Energy / exact',(stats.energy[state.time]/(.25*Math.exp(-4*run.nu*t))).toFixed(3)]];
+  el('readout').replaceChildren(...vals.map(([label,value])=>{const span=document.createElement('span'),small=document.createElement('span'),strong=document.createElement('span');small.className='text-small text-muted';small.textContent=label;strong.className='tabular-nums';strong.textContent=value;span.append(small,strong);return span;}));
+  el('error-title').textContent=state.field==='speed'?'Velocity error magnitude':'Signed error';
+  drawMap('exact',slice.truth,range.flow,state.field==='speed',slice.uvTrue);
+  drawMap('pred',slice.prediction,range.flow,state.field==='speed',slice.uvPred);
+  drawMap('error',slice.error,state.common?range.flow:range.error,state.field==='speed',null);
+  if(chart&&updateChart) chart.config=chartConfig();
+}
+applySaved(window.openai?.widgetState);syncControls();render();
+for(const [id,key] of [['run','run'],['stage','stage'],['field','field'],['chart-mode','chart']]) el(id).addEventListener('change',()=>{state[key]=el(id).value;render();save();});
+el('common-scale').addEventListener('change',()=>{state.common=el('common-scale').checked;render(false);save();});
+el('slider').addEventListener('input',()=>{state.time=Number(el('slider').value);render(false);});
+el('slider').addEventListener('change',save);
+function stop(){if(timer)clearInterval(timer);timer=null;el('play').textContent='Play';el('play').setAttribute('aria-pressed','false');}
+el('play').addEventListener('click',()=>{
+  if(timer){stop();save();return;}
+  if(state.time===lastFrame)state.time=0;
+  el('play').textContent='Pause';el('play').setAttribute('aria-pressed','true');syncControls();render(false);
+  timer=setInterval(()=>{state.time++;syncControls();render(false);if(state.time===lastFrame){stop();save();}},350);
+});
+window.addEventListener('openai:set_globals',event=>{if(event.detail?.globals?.widgetState){stop();applySaved(event.detail.globals.widgetState);syncControls();render();}});
+const observer=new ResizeObserver(()=>{if(root.isConnected)render(false);else{stop();observer.disconnect();}});observer.observe(root);
+try {
+  const {mountChart}=await import('https://persistent.oaistatic.com/plugins/visualize/charts/1.6.5/element.js');
+  chart=mountChart(el('comparison').querySelector('[data-viz-container]'),chartConfig());
+} catch(error) {el('comparison').textContent='Comparison chart could not load. Field explorer and exact error readouts remain available.';}
+</script>

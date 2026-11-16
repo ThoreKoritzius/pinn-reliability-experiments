@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+.DS_Store
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+# Regenerable browser bundles (the default is approximately 32 MB).
+/explorer.fragment.html
+/demo.html
+/results/*.html
+/results/explorer-checks/
+/reproduced/
+/runs/

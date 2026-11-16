@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PINN reliability lab · Taylor–Green explorer</title>
+<style>
+:root{color-scheme:light dark;--background:#f8fafc;--foreground:#132235;--muted-foreground:#536578;--border:#d8e1e9;--viz-series-1:#067e9b;--viz-series-2:#ca5638;--viz-series-3:#8363bb;--viz-series-4:#b28208;--viz-series-5:#277b57;--viz-series-6:#516778;--font-size-base:15px;font-family:system-ui,-apple-system,sans-serif}
+@media(prefers-color-scheme:dark){:root{--background:#101b29;--foreground:#e4edf6;--muted-foreground:#a8bacb;--border:#33475b;--viz-series-1:#54c4dd;--viz-series-2:#f28c71;--viz-series-3:#b99be9;--viz-series-4:#dec16b;--viz-series-5:#72cda4;--viz-series-6:#b2c7db}}
+*{box-sizing:border-box}body{margin:0;background:var(--background);color:var(--foreground);font-size:var(--font-size-base);line-height:1.5}main{max-width:1440px;padding:32px;margin:auto}h1,h2,h3,p{margin:0}h2{font-size:1.6rem;font-weight:500}h3{font-size:1rem;font-weight:500}.viz-controls,.viz-row{display:flex;flex-wrap:wrap;gap:16px;align-items:center}.form-label{display:grid;gap:5px}.form-select,.btn{font:inherit;color:inherit;border:1px solid var(--border);background:var(--background);border-radius:8px;padding:8px 12px}.form-select{max-width:100%}.btn{cursor:pointer}.form-range{width:100%;accent-color:var(--viz-series-1)}.form-check{display:flex;align-items:center;gap:8px}.text-small{font-size:.82rem}.text-muted{color:var(--muted-foreground)}.tabular-nums{font-variant-numeric:tabular-nums}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--viz-series-1);outline-offset:3px}.site-header{display:flex;justify-content:space-between;gap:16px;margin-bottom:24px;color:var(--muted-foreground);font-size:.85rem}a{color:var(--viz-series-1)}@media(max-width:600px){main{padding:16px}.site-header{flex-wrap:wrap}}
+</style>
+<script>
+// Optional local presentation state; storage can be unavailable for file URLs.
+let savedState=null;try{savedState=JSON.parse(localStorage.getItem('pinn-explorer')||'null');}catch{}
+window.openai={widgetState:savedState,setWidgetState:async snapshot=>{window.openai.widgetState=snapshot;try{localStorage.setItem('pinn-explorer',JSON.stringify(snapshot));}catch{}}};
+</script>
+</head>
+<body><main>
+<header class="site-header"><span>PINN RELIABILITY LAB / 01 · TAYLOR–GREEN</span><span>Exact reference · Physics-only training · Exploratory results</span></header>
+<!-- EXPLORER_CONTENT -->
+</main></body>
+</html>

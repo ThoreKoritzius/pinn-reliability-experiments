@@ -1,0 +1,47 @@
+{
+  "members": 2,
+  "points": 4096,
+  "note": "Uncalibrated diagnostic on one fixed PDE, not independent calibration/test cases",
+  "stages": {
+    "after_adam": {
+      "mean_velocity_relative_l2": 0.05502890161353772,
+      "ensemble_spread_vs_error_spearman": 0.23527684690916745,
+      "mean_member_residual_vs_mean_error_spearman": -0.30340249165218275,
+      "uncalibrated_1.96std_component_coverage": {
+        "u": 0.4306640625,
+        "v": 0.47607421875
+      }
+    },
+    "after_lbfgs": {
+      "mean_velocity_relative_l2": 0.018155900142176804,
+      "ensemble_spread_vs_error_spearman": 0.19546672440820406,
+      "mean_member_residual_vs_mean_error_spearman": -0.30091703544248855,
+      "uncalibrated_1.96std_component_coverage": {
+        "u": 0.513916015625,
+        "v": 0.58154296875
+      }
+    }
+  },
+  "exact_wrong_initial_state_witnesses": [
+    {
+      "amplitude": 0.0,
+      "max_abs_residual": 0.0,
+      "relative_velocity_error": 1.0000000000000016
+    },
+    {
+      "amplitude": 0.5,
+      "max_abs_residual": 6.938893903907228e-17,
+      "relative_velocity_error": 0.5000000000000008
+    },
+    {
+      "amplitude": 1.0,
+      "max_abs_residual": 2.220446049250313e-16,
+      "relative_velocity_error": 0.0
+    },
+    {
+      "amplitude": 1.5,
+      "max_abs_residual": 5.828670879282072e-16,
+      "relative_velocity_error": 0.5000000000000008
+    }
+  ]
+}
